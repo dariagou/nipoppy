@@ -73,6 +73,9 @@ def run_dcm2bids(dicom_id, global_configs, session_id, stage, overlays, logger):
             -c {CONFIG_FILE} \
             -o {SINGULARITY_BIDS_DIR} "
 
+    else:
+        logger.error(f"Incorrect dcm2bids stage: {stage}")
+
     CMD_ARGS = SINGULARITY_CMD + dcm2bids_CMD 
     CMD = CMD_ARGS.split()
 
@@ -86,7 +89,7 @@ def run_dcm2bids(dicom_id, global_configs, session_id, stage, overlays, logger):
 
     return dcm2bids_proc_success
 
-def run(global_configs, session_id, stage='convert-data', overlays=None, n_jobs=2, dicom_id=None, logger=None, fpaths_to_copy=None):
+def run(global_configs, session_id, stage='convert', overlays=None, n_jobs=2, dicom_id=None, logger=None, fpaths_to_copy=None):
     """ Runs the bids conv tasks 
     """
     session = session_id_to_bids_session(session_id)
@@ -158,7 +161,7 @@ def run(global_configs, session_id, stage='convert-data', overlays=None, n_jobs=
         
         logger.info("-"*50)
 
-        if stage == 'prepare-data':
+        if stage == 'helper':
             # Generate empty config file
             logger.info(f"Creating dcm2bids_config.json in {DATASET_ROOT}/proc (to be seen by Singularity container)")
             
