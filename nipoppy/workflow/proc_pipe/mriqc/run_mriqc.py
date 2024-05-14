@@ -17,7 +17,7 @@ def run(participant_id, global_configs, session_id, output_dir, modalities, bids
     MRIQC_CONTAINER = global_configs["PROC_PIPELINES"]["mriqc"]["CONTAINER"]
     MRIQC_VERSION = global_configs["PROC_PIPELINES"]["mriqc"]["VERSION"]
     MRIQC_CONTAINER = MRIQC_CONTAINER.format(MRIQC_VERSION)
-    SINGULARITY_CONTAINER = f"{CONTAINER_STORE}{MRIQC_CONTAINER}"
+    SINGULARITY_CONTAINER = f"{CONTAINER_STORE}/{MRIQC_CONTAINER}"
 
     bids_dir = f"{DATASET_ROOT}/bids/"
     proc_dir = f"{DATASET_ROOT}/proc/"
@@ -28,8 +28,16 @@ def run(participant_id, global_configs, session_id, output_dir, modalities, bids
         log_file = f"{log_dir}/mriqc.log"
         logger = my_logger.get_logger(log_file)
 
+    # create bids db if it doesn't already exist
     if bids_db_dir is None:
+        os.makedirs(f'{proc_dir}/bids_db_mriqc', exist_ok=True)
         bids_db_dir = f"/mriqc_proc/bids_db_mriqc"
+    
+    # remove old bids_db
+    sql_db_file = f"{proc_dir}/bids_db_mriqc/layout_index.sqlite" 
+    if os.path.exists(sql_db_file):
+        logger.info(f"Removing old bids_db from {sql_db_file}")
+        os.remove(sql_db_file)
         
     logger.info(f"bids_db_dir: {bids_db_dir}")
 

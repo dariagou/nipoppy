@@ -58,13 +58,13 @@ def run_dcm2bids(dicom_id, global_configs, session_id, stage, overlays, logger):
     SINGULARITY_CMD=f"{SINGULARITY_PATH} run {flag_overlay} {flag_bind} {SINGULARITY_DCM2BIDS} "
 
     # dcm2bids CMD
-    if stage == 1:
+    if stage == 'helper':
         logger.info("Running dcm2bids_helper")
         dcm2bids_CMD = f" dcm2bids_helper \
             -d {SINGULARITY_DICOM_DIR}/{dicom_id} \
             -o {SINGULARITY_BIDS_DIR}/helper "
 
-    elif stage == 2:
+    elif stage == 'convert':
         logger.info("Running dcm2bids")
         dcm2bids_CMD = f" dcm2bids \
             -d {SINGULARITY_DICOM_DIR}/{dicom_id} \
@@ -73,23 +73,20 @@ def run_dcm2bids(dicom_id, global_configs, session_id, stage, overlays, logger):
             -c {CONFIG_FILE} \
             -o {SINGULARITY_BIDS_DIR} "
 
-    else:
-        logger.error(f"Incorrect dcm2bids stage: {stage}")
-
     CMD_ARGS = SINGULARITY_CMD + dcm2bids_CMD 
     CMD = CMD_ARGS.split()
 
     logger.info(f"CMD:\n{CMD_ARGS}")
-    dcm2bids_proc_success = True
     try:
         subprocess.run(CMD, check=True) # raises CalledProcessError if non-zero return code
+        dcm2bids_proc_success = True
     except Exception as e:
         logger.error(f"bids run failed with exceptions: {e}")
         dcm2bids_proc_success = False
 
     return dcm2bids_proc_success
 
-def run(global_configs, session_id, stage=2, overlays=None, n_jobs=2, dicom_id=None, logger=None, fpaths_to_copy=None):
+def run(global_configs, session_id, stage='convert-data', overlays=None, n_jobs=2, dicom_id=None, logger=None, fpaths_to_copy=None):
     """ Runs the bids conv tasks 
     """
     session = session_id_to_bids_session(session_id)
@@ -127,7 +124,7 @@ def run(global_configs, session_id, stage=2, overlays=None, n_jobs=2, dicom_id=N
     if n_dcm2bids_participants > 0:
         logger.info(f"\nStarting bids conversion for {n_dcm2bids_participants} participant(s)")
     
-        if stage == 2:
+        if stage == 'convert':
             for fpath in fpaths_to_copy:
                 fpath = Path(fpath)
                 logger.info(f"Copying {fpath} to {DATASET_ROOT}/proc/{fpath.name} (to be seen by Singularity container)")
@@ -148,7 +145,7 @@ def run(global_configs, session_id, stage=2, overlays=None, n_jobs=2, dicom_id=N
 
         # Check successful dcm2bids runs
         n_dcm2bids_success = np.sum(dcm2bids_results)
-        logger.info(f"Successfully ran dcm2bids (Stage 1 or Stage 2) for {n_dcm2bids_success} out of {n_dcm2bids_participants} participants")
+        logger.info(f"Successfully ran dcm2bids for {n_dcm2bids_success} out of {n_dcm2bids_participants} participants")
 
         # Check successful bids (NOTE: will count partial conversion as successful)
         participants_with_bids = {
@@ -161,7 +158,7 @@ def run(global_configs, session_id, stage=2, overlays=None, n_jobs=2, dicom_id=N
         
         logger.info("-"*50)
 
-        if stage == 1:
+        if stage == 'prepare-data':
             # Generate empty config file
             logger.info(f"Creating dcm2bids_config.json in {DATASET_ROOT}/proc (to be seen by Singularity container)")
             
@@ -172,7 +169,7 @@ def run(global_configs, session_id, stage=2, overlays=None, n_jobs=2, dicom_id=N
             with open(f"{DATASET_ROOT}/proc/dcm2bids_config.json", 'w') as config_file:
                 json.dump(config_content, config_file, indent='\t')
 
-            logger.info("Stage 1 done! Still need to run Stage 2")
+            logger.info("Helper done! Still need to convert data")
 
         else:
 
@@ -199,7 +196,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--global_config', type=str, help='path to global configs for a given nipoppy dataset', required=True)
     parser.add_argument('--session_id', type=str, help='session id for the participant', required=True)
-    parser.add_argument('--stage', type=int, default=2, help='dcm2bids stage - either 1 to help generate a config file (a template is created at <DATASET_ROOT>/proc/dcm2bids_config.json), or 2 if a config file has already been created (at the same location), default: 2)')
+    parser.add_argument('--stage', type=str.lower, choices=['helper', 'convert'], default='convert', help='dcm2bids stage - either "helper" to generate a config file with dcm2bids_helper (a template is created at <DATASET_ROOT>/proc/dcm2bids_config.json), or convert if a config file has already been created (at the same location), default: convert)')
     parser.add_argument('--overlay', type=str, nargs='+', help='path(s) to Squashfs overlay(s)')
     parser.add_argument('--n_jobs', type=int, default=2, help='number of parallel processes (default: 2)')
     parser.add_argument('--dicom_id', type=str, help='dicom id for a single participant to run (default: run on all participants in the doughnut file)')

@@ -38,15 +38,16 @@ def run_fmriprep(participant_id: str,
     fmriprep_home_dir = f"{fmriprep_out_dir}/fmriprep_home_{participant_id}/"
     Path(f"{fmriprep_home_dir}").mkdir(parents=True, exist_ok=True)
 
-    # BIDS DB created for fmriprep by run_nipoppy.py
-    bids_db_dir = f"/fmripre_proc/bids_db_fmriprep"
+    # BIDS DB created for fmriprep by run_nipoppy.py (otherwise create it)
+    os.makedirs(f'{proc_dir}/bids_db_fmriprep', exist_ok=True)
+    bids_db_dir = f"/fmriprep_proc/bids_db_fmriprep"
 
     # Singularity CMD 
     SINGULARITY_CMD=f"singularity run \
         -B {bids_dir}:{bids_dir} \
         -B {fmriprep_home_dir}:/home/fmriprep --home /home/fmriprep --cleanenv \
         -B {fmriprep_out_dir}:/output \
-        -B {proc_dir}:/fmripre_proc \
+        -B {proc_dir}:/fmriprep_proc \
         -B {templateflow_dir}:{SINGULARITY_TEMPLATEFLOW_DIR} \
         -B {fmriprep_dir}:/work \
         -B {fs_dir}:{SINGULARITY_FS_DIR} \
@@ -70,7 +71,7 @@ def run_fmriprep(participant_id: str,
     # Append optional args
     if use_bids_filter:
         logger.info("Using bids_filter.json")
-        bids_filter_str = f"--bids-filter-file /fmripre_proc/bids_filter_fmriprep.json"
+        bids_filter_str = f"--bids-filter-file /fmriprep_proc/bids_filter_fmriprep.json"
         fmriprep_CMD = f"{fmriprep_CMD} {bids_filter_str}"
 
     if anat_only:
@@ -87,10 +88,10 @@ def run_fmriprep(participant_id: str,
     logger.info("-"*50)
     try:
         fmriprep_proc = subprocess.run(CMD)
+        logger.info(f"Successfully completed fmriprep run for participant: {participant_id}")
     except Exception as e:
         logger.error(f"fmriprep run failed with exceptions: {e}")
     
-    logger.info(f"Successfully completed fmriprep run for participant: {participant_id}")
     logger.info("-"*75)
     logger.info("")
     return CMD
@@ -112,7 +113,7 @@ def run(participant_id: str,
     FS_VERSION = global_configs["PROC_PIPELINES"]["freesurfer"]["VERSION"]
     FMRIPREP_CONTAINER = FMRIPREP_CONTAINER.format(FMRIPREP_VERSION)
 
-    SINGULARITY_FMRIPREP = f"{CONTAINER_STORE}{FMRIPREP_CONTAINER}"
+    SINGULARITY_FMRIPREP = f"{CONTAINER_STORE}/{FMRIPREP_CONTAINER}"
 
     log_dir = f"{DATASET_ROOT}/scratch/logs/"
 
@@ -143,8 +144,8 @@ def run(participant_id: str,
 
     # Copy bids_filter.json `<DATASET_ROOT>/bids/bids_filter.json`
     if use_bids_filter:
-        logger.info(f"Copying ./bids_filter.json to {proc_dir}/bids_filter_fmriprep.json (to be seen by Singularity container)")
-        shutil.copyfile(f"{CWD}/bids_filter.json", f"{proc_dir}/bids_filter_fmriprep.json")
+        logger.info(f"Copying ./sample_bids_filter.json to {proc_dir}/bids_filter_fmriprep.json (to be seen by Singularity container)")
+        shutil.copyfile(f"{CWD}/sample_bids_filter.json", f"{proc_dir}/bids_filter_fmriprep.json")
 
     # launch fmriprep
     run_fmriprep(participant_id,
