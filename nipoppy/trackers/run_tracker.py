@@ -29,14 +29,14 @@ from nipoppy.workflow.utils import (
 # Globals
 PIPELINE_STATUS_COLUMNS = "PIPELINE_STATUS_COLUMNS"
 pipeline_tracker_config_dict = {
-    "heudiconv": bids_tracker.tracker_configs, 
+    "dcm2bids": bids_tracker.tracker_configs, 
     "freesurfer": fs_tracker.tracker_configs,
     "fmriprep": fmriprep_tracker.tracker_configs,
     "mriqc": mriqc_tracker.tracker_configs,
     "tractoflow": tractoflow_tracker.tracker_configs,
 }
 PIPELINE_REQUIRED_DATATYPES = {
-    "heudiconv": [],
+    "dcm2bids": [],
     "freesurfer": ["anat"],
     "fmriprep": ["anat"],
     "mriqc": ["anat"],
@@ -102,7 +102,7 @@ def run(global_configs, dash_schema_file, pipelines, session_id="ALL", run_id="1
         pipe_tracker = Tracker(global_configs, dash_schema_file, pipeline) 
         
         # TODO revise tracker class
-        if pipeline == "heudiconv":
+        if pipeline == "dcm2bids":
             version = global_configs["BIDS"][pipeline]["VERSION"]
         else:
             version = global_configs["PROC_PIPELINES"][pipeline]["VERSION"]
@@ -154,8 +154,8 @@ def run(global_configs, dash_schema_file, pipelines, session_id="ALL", run_id="1
             for dash_col, _ in status_check_dict.items():
                 _df[dash_col] = _df[dash_col].astype(dash_col_dtype)
                 
-            # BIDS (i.e. heudiconv tracker is slightly different than proc_pipes)
-            if pipeline == "heudiconv":
+            # BIDS (i.e. dcm2bids tracker is slightly different than proc_pipes)
+            if pipeline == "dcm2bids":
                 # Generate BIDSLayout only once per tracker run and not for each participant
                 bids_layout = bids.BIDSLayout(bids_dir, validate=False)
                 logger.debug(f"bids_dir: {bids_dir}")
@@ -192,7 +192,7 @@ def run(global_configs, dash_schema_file, pipelines, session_id="ALL", run_id="1
                 _df.loc[bids_id, COL_BIDS_ID_MANIFEST] = bids_id
 
                 # TODO eventually we should move these to the {pipeline}_tracker.py files
-                if pipeline == "heudiconv":
+                if pipeline == "dcm2bids":
                     subject_dir = f"{DATASET_ROOT}/bids/{bids_id}"
                     subject_ses_dir = f"{subject_dir}/{session}"
                 elif pipeline in ["freesurfer", "tractoflow"]:
@@ -250,7 +250,7 @@ def run(global_configs, dash_schema_file, pipelines, session_id="ALL", run_id="1
                             _df.loc[bids_id,"pipeline_endtime"] = UNAVAILABLE
                     elif subject_ses_dir_status:
                         for name, func in status_check_dict.items():
-                            if pipeline == "heudiconv":
+                            if pipeline == "dcm2bids":
                                 status = func(bids_layout, participant_id, session_id, run_id, acq_label)
                             else:
                                 status = func(subject_dir, session_id, run_id, acq_label)
@@ -324,7 +324,7 @@ if __name__ == '__main__':
     parser.add_argument('--dash_schema', type=str, help='path to dashboard schema to display tracker status', required=True)
     parser.add_argument('--pipelines', nargs='+', help='list of pipelines to track', required=True)
     parser.add_argument('--session_id', type=str, default="ALL", help='bids session_id')
-    parser.add_argument('--run_id', type=str, default="1", help='bids run_id')
+    parser.add_argument('--run_id', type=str, default=None, help='bids run_id')
     parser.add_argument('--acq_label', type=str, default=None, help='bids acq label')
     parser.add_argument('--log_level', type=str, default="INFO", help='log level')
     args = parser.parse_args()

@@ -42,7 +42,7 @@ def run_fmriprep(participant_id: str,
     fmriprep_home_dir = f"{fmriprep_out_dir}/fmriprep_home_{participant_id}/"
     Path(f"{fmriprep_home_dir}").mkdir(parents=True, exist_ok=True)
 
-    bids_db_dir = f"/fmriprep_proc/{DNAME_BIDS_DB}"
+    bids_db_dir = f"/fmriprep_proc/bids_db_fmriprep"
 
     bids_db_dir_outside_container = f"{proc_dir}/{DNAME_BIDS_DB}"
     if not Path(bids_db_dir_outside_container).exists():
@@ -106,10 +106,10 @@ def run_fmriprep(participant_id: str,
     logger.info("-"*50)
     try:
         fmriprep_proc = subprocess.run(CMD)
+        logger.info(f"Successfully completed fmriprep run for participant: {participant_id}")
     except Exception as e:
         logger.error(f"fmriprep run failed with exceptions: {e}")
-
-    logger.info(f"Successfully completed fmriprep run for participant: {participant_id}")
+    
     logger.info("-"*75)
     logger.info("")
     return CMD
@@ -132,7 +132,7 @@ def run(participant_id: str,
     FS_VERSION = global_configs["PROC_PIPELINES"]["freesurfer"]["VERSION"]
     FMRIPREP_CONTAINER = FMRIPREP_CONTAINER.format(FMRIPREP_VERSION)
 
-    SINGULARITY_FMRIPREP = f"{CONTAINER_STORE}{FMRIPREP_CONTAINER}"
+    SINGULARITY_FMRIPREP = f"{CONTAINER_STORE}/{FMRIPREP_CONTAINER}"
 
     log_dir = f"{DATASET_ROOT}/scratch/logs/"
 
@@ -163,7 +163,7 @@ def run(participant_id: str,
 
     # Copy bids_filter.json `<DATASET_ROOT>/bids/bids_filter.json`
     if use_bids_filter:
-        logger.info(f"Copying ./bids_filter.json to {proc_dir}/bids_filter_fmriprep.json (to be seen by Singularity container)")
+        logger.info(f"Copying ./sample_bids_filter.json to {proc_dir}/bids_filter_fmriprep.json (to be seen by Singularity container)")
         shutil.copyfile(f"{CWD}/sample_bids_filter.json", f"{proc_dir}/bids_filter_fmriprep.json")
 
     # launch fmriprep

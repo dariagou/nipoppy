@@ -81,7 +81,7 @@ def check_T1w(subject_dir, session_id, run_id, acq_label=None, task_label=None):
     suffix = "T1w"
     return check_status(subject_dir, session_id, run_id, acq_label, task_label, suffix, anat_files_dict)
          
-def check_T2w(subject_dir, session_id,run_id, acq_label=None, task_label=None):
+def check_T2w(subject_dir, session_id, run_id, acq_label=None, task_label=None):
     suffix = "T2w"
     return check_status(subject_dir, session_id, run_id, acq_label, task_label, suffix, anat_files_dict)
 

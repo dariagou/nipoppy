@@ -20,7 +20,7 @@ def run(participant_id, global_configs, session_id, output_dir, modalities, logg
     MRIQC_CONTAINER = global_configs["PROC_PIPELINES"]["mriqc"]["CONTAINER"]
     MRIQC_VERSION = global_configs["PROC_PIPELINES"]["mriqc"]["VERSION"]
     MRIQC_CONTAINER = MRIQC_CONTAINER.format(MRIQC_VERSION)
-    SINGULARITY_CONTAINER = f"{CONTAINER_STORE}{MRIQC_CONTAINER}"
+    SINGULARITY_CONTAINER = f"{CONTAINER_STORE}/{MRIQC_CONTAINER}"
 
     bids_dir = f"{DATASET_ROOT}/bids/"
     proc_dir = f"{DATASET_ROOT}/proc/"
