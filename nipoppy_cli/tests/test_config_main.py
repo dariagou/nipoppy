@@ -22,18 +22,26 @@ def valid_config_data():
         "DATASET_NAME": "my_dataset",
         "VISITS": ["1"],
         "SESSIONS": ["ses-1"],
-        "BIDS": {
-            "bids_converter": {
-                "1.0": {
-                    "step1": {"CONTAINER": "path"},
-                    "step2": {"CONTAINER": "other_path"},
-                }
+        "BIDS_PIPELINES": [
+            {
+                "NAME": "bids_converter",
+                "VERSION": "1.0",
+                "STEP": "step1",
+                "CONTAINER": "path",
             },
-        },
-        "PROC_PIPELINES": {
-            "pipeline1": {"v1": {}, "v2": {"CONTAINER": "path"}},
-            "pipeline2": {"1.0": {"URI": "uri"}, "2.0": {"INVOCATION": {}}},
-        },
+            {
+                "NAME": "bids_converter",
+                "VERSION": "1.0",
+                "STEP": "step2",
+                "CONTAINER": "other_path",
+            },
+        ],
+        "PROC_PIPELINES": [
+            {"NAME": "pipeline1", "VERSION": "v1"},
+            {"NAME": "pipeline1", "VERSION": "v2", "CONTAINER": "path"},
+            {"NAME": "pipeline2", "VERSION": "1.0", "URI": "uri"},
+            {"NAME": "pipeline2", "VERSION": "2.0", "INVOCATION": {}},
+        ],
     }
 
 
@@ -44,10 +52,32 @@ def test_extra_fields_allowed(field_name, valid_config_data):
     assert hasattr(Config(**args), field_name)
 
 
-def test_check_no_duplicate_pipeline(valid_config_data):
+@pytest.mark.parametrize(
+    "proc_pipelines_data,bids_pipelines_data",
+    [
+        (
+            [
+                {"NAME": "pipeline1", "VERSION": "v1"},
+                {"NAME": "pipeline1", "VERSION": "v1"},
+            ],
+            [],
+        ),
+        (
+            [],
+            [
+                {"NAME": "pipeline1", "VERSION": "v1", "STEP": "step1"},
+                {"NAME": "pipeline1", "VERSION": "v1", "STEP": "step1"},
+            ],
+        ),
+    ],
+)
+def test_check_no_duplicate_pipeline(
+    valid_config_data, proc_pipelines_data, bids_pipelines_data
+):
     data: dict = valid_config_data
-    data["PROC_PIPELINES"].update(data["BIDS"])
-    with pytest.raises(ValidationError):
+    data["PROC_PIPELINES"] = proc_pipelines_data
+    data["BIDS_PIPELINES"] = bids_pipelines_data
+    with pytest.raises(ValidationError, match="Found multiple configurations for"):
         Config(**data)
 
 
@@ -62,8 +92,8 @@ def test_sessions_inferred(visits, expected_sessions):
     data = {
         "DATASET_NAME": "my_dataset",
         "VISITS": visits,
-        "BIDS": {},
-        "PROC_PIPELINES": {},
+        "BIDS_PIPELINES": [],
+        "PROC_PIPELINES": [],
     }
     config = Config(**data)
     assert config.SESSIONS == expected_sessions
@@ -101,9 +131,13 @@ def test_propagate_container_config(
     pipeline_version = "1.0"
     data = valid_config_data
     data["CONTAINER_CONFIG"] = data_root
-    data["PROC_PIPELINES"] = {
-        pipeline_name: {pipeline_version: {"CONTAINER_CONFIG": data_pipeline}}
-    }
+    data["PROC_PIPELINES"] = [
+        {
+            "NAME": pipeline_name,
+            "VERSION": pipeline_version,
+            "CONTAINER_CONFIG": data_pipeline,
+        }
+    ]
 
     container_config = (
         Config(**data)
@@ -147,11 +181,14 @@ def test_propagate_container_config_bids(
     step_name = "step1"
     data = valid_config_data
     data["CONTAINER_CONFIG"] = data_root
-    data["BIDS"] = {
-        pipeline_name: {
-            pipeline_version: {step_name: {"CONTAINER_CONFIG": data_pipeline}}
+    data["BIDS_PIPELINES"] = [
+        {
+            "NAME": pipeline_name,
+            "VERSION": pipeline_version,
+            "STEP": step_name,
+            "CONTAINER_CONFIG": data_pipeline,
         }
-    }
+    ]
 
     container_config = (
         Config(**data)
@@ -173,6 +210,11 @@ def test_get_pipeline_config(pipeline, version, valid_config_data):
     )
 
 
+def test_get_pipeline_config_missing(valid_config_data):
+    with pytest.raises(ValueError):
+        Config(**valid_config_data).get_pipeline_config("not_a_pipeline", "v1")
+
+
 @pytest.mark.parametrize(
     "pipeline,version,step",
     [("bids_converter", "1.0", "step1"), ("bids_converter", "1.0", "step2")],
@@ -184,9 +226,11 @@ def test_get_bids_pipeline_config(pipeline, version, step, valid_config_data):
     )
 
 
-def test_get_pipeline_config_missing(valid_config_data):
+def test_get_bids_pipeline_config_missing(valid_config_data):
     with pytest.raises(ValueError):
-        Config(**valid_config_data).get_pipeline_config("not_a_pipeline", "v1")
+        Config(**valid_config_data).get_bids_pipeline_config(
+            "not_a_bids_pipeline", "v1", "step1"
+        )
 
 
 def test_save(tmp_path: Path, valid_config_data):
@@ -216,3 +260,45 @@ def test_load(path):
 def test_load_missing_required():
     with pytest.raises(ValueError):
         Config.load(DPATH_TEST_DATA / "config_invalid1.json")
+
+
+def test_globals(valid_config_data, tmp_path: Path):
+    pattern_to_replace1 = "[[FREESURFER_LICENSE_FILE]]"
+    replacement_value1 = "/path/to/license.txt"
+    pattern_to_replace2 = "[[TEMPLATEFLOW_HOME]]"
+    replacement_value2 = "/path/to/templateflow"
+
+    valid_config_data["GLOBALS"] = {
+        pattern_to_replace1: replacement_value1,
+        pattern_to_replace2: replacement_value2,
+    }
+    valid_config_data["PROC_PIPELINES"] = [
+        {
+            "NAME": "fmriprep",
+            "VERSION": "23.1.3",
+            "INVOCATION": {
+                "fs_license_file": pattern_to_replace1,
+            },
+            "CONTAINER_CONFIG": {
+                "ARGS": ["--bind", pattern_to_replace1, "--bind", pattern_to_replace2],
+                "ENV_VARS": {"TEMPLATEFLOW_HOME": pattern_to_replace2},
+            },
+        },
+    ]
+
+    fpath = tmp_path / "config.json"
+    Config(**valid_config_data).save(fpath)
+    config_to_check = Config.load(fpath, apply_globals_replacement=True)
+    assert config_to_check.PROC_PIPELINES[0] == PipelineConfig(
+        **{
+            "NAME": "fmriprep",
+            "VERSION": "23.1.3",
+            "INVOCATION": {
+                "fs_license_file": replacement_value1,
+            },
+            "CONTAINER_CONFIG": {
+                "ARGS": ["--bind", replacement_value1, "--bind", replacement_value2],
+                "ENV_VARS": {"TEMPLATEFLOW_HOME": replacement_value2},
+            },
+        },
+    )
